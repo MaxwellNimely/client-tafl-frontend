@@ -5,26 +5,26 @@ import imageUrlBuilder from "@sanity/image-url"
 // =========================
 // 🔐 ENVIRONMENT VARIABLES (VITE)
 // =========================
-// These values are injected at build time by Vite (.env file)
-// They must be prefixed with VITE_ to be exposed in frontend
+// Injected at build time via Vite (.env + Vercel)
+// Must start with VITE_ to be accessible in frontend
 //
 const projectId = import.meta.env.VITE_SANITY_PROJECT_ID
 const dataset = import.meta.env.VITE_SANITY_DATASET
 
 //
 // =========================
-// 🧠 API VERSION (LOCKED)
+// 🌐 API VERSION (LOCKED)
 // =========================
-// Locking API version ensures stability and prevents breaking changes
+// Ensures consistent Sanity API behavior across deployments
 //
-const apiVersion = "2024-01-01"
+const apiVersion =
+  import.meta.env.VITE_SANITY_API_VERSION || "2024-01-01"
 
 //
 // =========================
-// ⚠️ STRICT VALIDATION (PRODUCTION SAFE)
+// ⚠️ REQUIRED CONFIG VALIDATION
 // =========================
-// Fail fast if configuration is missing (important for Vercel builds)
-// This prevents silent runtime errors in production
+// Prevents silent production failures (fail-fast approach)
 //
 if (!projectId) {
   throw new Error("❌ Missing VITE_SANITY_PROJECT_ID in environment variables")
@@ -38,28 +38,50 @@ if (!dataset) {
 // =========================
 // 🚀 SANITY CLIENT (PRODUCTION)
 // =========================
-// Main client used for fetching published content from Sanity CMS
+// Main client used for fetching published CMS content
 //
 export const client = createClient({
   projectId,
   dataset,
   apiVersion,
 
-  // ⚡ Use CDN for faster reads in production
-  useCdn: true,
+  //
+  // ⚡ CDN CONTROL (VERCEL-READY)
+  // -----------------------------
+  // Controlled via environment variable:
+  // VITE_SANITY_USE_CDN=true/false
+  //
+  // true  → faster production reads
+  // false → fresh data (slower, but real-time)
+  //
+  useCdn: import.meta.env.VITE_SANITY_USE_CDN === "true",
 
-  // 🔒 Only fetch published content (prevents drafts leaking to users)
+  //
+  // 🔒 SECURITY / CONTENT MODE
+  // --------------------------
+  // Only returns published content (prevents draft leaks)
+  //
   perspective: "published",
 
-  // 🔮 Future feature flag (kept false for stability)
+  //
+  // 🔮 FUTURE STABILITY FLAG
+  // --------------------------
+  //
   stega: false,
+
+  //
+  // 🌐 FUTURE CUSTOM SANITY API DOMAIN (OPTIONAL)
+  // --------------------------------------------
+  // Uncomment when using enterprise/custom API routing
+  //
+  // baseUrl: import.meta.env.VITE_SANITY_BASE_URL,
 })
 
 //
 // =========================
 // 🖼️ IMAGE URL BUILDER
 // =========================
-// Converts Sanity image references into usable CDN image URLs
+// Converts Sanity image references into CDN URLs
 //
 const builder = imageUrlBuilder(client)
 
@@ -67,7 +89,7 @@ const builder = imageUrlBuilder(client)
 // =========================
 // 🖼️ SAFE IMAGE HELPER
 // =========================
-// Prevents runtime errors when image is missing or undefined
+// Prevents crashes when image is missing or invalid
 //
 export const urlFor = (source) =>
   source ? builder.image(source) : null
@@ -76,8 +98,8 @@ export const urlFor = (source) =>
 // =========================
 // 🧪 PREVIEW CLIENT (DEV ONLY)
 // =========================
-// Used for draft previewing inside Sanity Studio or frontend preview mode
-// NEVER expose tokens in production builds
+// Enables draft content preview in development ONLY
+// NEVER expose tokens in production
 //
 export const previewClient =
   import.meta.env.DEV
@@ -86,13 +108,19 @@ export const previewClient =
         dataset,
         apiVersion,
 
-        // ❗ Must be false for drafts/preview content
+        //
+        // ❗ Must disable CDN for drafts
+        //
         useCdn: false,
 
-        // 👀 Enables draft content visibility
+        //
+        // 👀 Enables draft + published content
+        //
         perspective: "previewDrafts",
 
-        // 🔐 Token should ONLY exist in .env (never commit)
+        //
+        // 🔐 Optional local-only token
+        //
         token: import.meta.env.VITE_SANITY_TOKEN,
       })
     : null
